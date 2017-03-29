@@ -6,8 +6,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include "fenetreGlissante.h"
+#include "listeChainee.h"
 
 #define RCVSIZE 1024
 
@@ -16,6 +19,13 @@ int main (int argc, char *argv[]) {
 	if(argc!=2){
 		printf("Argument invalid\n");
 	}
+	//Garde ces variables gros je vais essayer d'appliquer le cours
+	int FlightSize =0; //Quantité de donnée envoyé mais non acquitté
+	float tempsEcoule = 0;
+	float clk_tck = CLOCKS_PER_SEC;
+
+	//Creation liste chainée
+	LIST liste = initList();
 
 	FENETRE *fen = initFenetre();
 	fd_set Ldesc;
@@ -23,7 +33,7 @@ int main (int argc, char *argv[]) {
 	int port= atoi(argv[1]);
 	int valid= 1;
 	int tailleEnvoie=0;
-  int i,j;
+	int i,j;
 	socklen_t alen= sizeof(client);
 	char buffer[RCVSIZE];
 	char ACK[RCVSIZE];//string de l'ACK
@@ -182,58 +192,67 @@ int main (int argc, char *argv[]) {
 				}
 
 				while (1) {
+					//printf("Nombre de coups écoulés : %d\n", clock());
+					float temps =  clock()/clk_tck;
+
 					memset(buffer,0,RCVSIZE);
 					memset(ACK,0,RCVSIZE);
-          memset(segment,0,RCVSIZE);
-          memset(segment_data,0,RCVSIZE);
+					memset(segment,0,RCVSIZE);
+					memset(segment_data,0,RCVSIZE);
 
 					FD_SET(descClient, &Ludp);
+					printf("@Serveur : On va faire le select ! \n");
 					select(descClient+1, &Ludp, NULL, NULL, &tv);
 
+
 					if(FD_ISSET(descClient, &Ludp)){
+						printf(" ----------- RECEPTION ACK ---------------------\n");
 						recvfrom(descClient,buffer,RCVSIZE,0,(struct sockaddr*)&client, &alen);
+
+
 						tailleEnvoie++;
 						i=4;
-            j=0;
+						j=0;
 						while(buffer[i]!='_'){
 							ACK[j]=buffer[i];
 							i++;
-              j++;
+							j++;
 						}
 
-						receptionACK(fen, atoi(ACK), cont);
-						printf("ACK_%s\n", ACK);
+						receptionACK(fen, atoi(ACK), cont, liste);
 
-            if(cont==0 && atoi(ACK)==fen->dernier){
-              printf("Fermeture de la connexion\n" );
-              close(descClient);
-              exit(0);
-            }
+						if(cont==0 && atoi(ACK)==fen->dernier){
+						  printf("Fermeture de la connexion\n" );
+						  close(descClient);
+							printf("----- TEST AFFICHAGE LISTE ------\n");
+							afficherListe(&liste);
+						  exit(0);
+						}
 					}else{
 						if(fen->dernier > num_seg) {
 
-							printf("On a pas d'ACK, on va envoyer ! dernier : %d, num_Seq : %d \n", fen->dernier, num_seg);
+							printf("@Serveur : On a pas d'ACK, on va envoyer ! dernier : %d, num_Seq : %d \n", fen->dernier, num_seg);
 							sprintf(segment,"%d_",num_seg);
-
 							for(i=0; i<122; i++){
 								tmp = fgetc(file);
 								if(tmp != EOF) {
 									segment_data[i] = tmp;
 								} else {
-                  fen->dernier=num_seg;
+									fen->dernier=num_seg;
 									cont = 0;
 								}
 							}
-
 							strcat(segment, segment_data);
-              printf("%s\n",segment);
-              printf("\n");
-
+							/*printf("%s\n",segment);
+							printf("\n");*/
+							ajouterElemFin(&liste ,time(NULL), segment, num_seg);
 							sendto(descClient, segment, strlen(segment), 0, (struct sockaddr*)&client, sizeof(client));
-              num_seg++;
+
+							num_seg++;
+
 						}else{
-							printf("La fenetre nous bloque, on doit attendre ! \n");
-              sleep(1);
+							printf("@Serveur : La fenetre nous bloque, on doit attendre ! \n");
+							sleep(1);
 						}
 					}
 				}
@@ -244,5 +263,7 @@ int main (int argc, char *argv[]) {
 	}
   close(descTCP);
   close(descUDP);
+	printf("----- TEST AFFICHAGE LISTE ------\n");
+	afficherListe(&liste);
   return 0;
 }

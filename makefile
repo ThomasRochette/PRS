@@ -10,7 +10,10 @@ clientUDP : clientUDP.o
 client : client.o
 	$(CC) $(flag) $< -o $@
 
-serveur : serveur.o fenetreGlissante.o
+serveur : serveur.o fenetreGlissante.o listeChainee.o
+	$(CC) $(flag) $^ -o $@
+
+test : testHorloge.o
 	$(CC) $(flag) $^ -o $@
 
 %.o: %.c

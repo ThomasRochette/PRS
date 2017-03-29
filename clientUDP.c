@@ -91,6 +91,7 @@ int main (int argc, char *argv[]) {
     printf("%s\n",ack_send);
 
     sendto(desc,ack_send,strlen(ack_send),0,(struct sockaddr*)&adresse, sizeof(adresse));
+    sleep(1);
   }
 
 close(desc);
